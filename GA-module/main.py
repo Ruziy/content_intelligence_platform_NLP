@@ -1,0 +1,1 @@
+print('Hello, its module for GA')
