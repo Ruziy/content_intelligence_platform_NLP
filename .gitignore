@@ -4,4 +4,3 @@ source/v1_
 pyproject.toml
 .venv/
 uv.lock
-ner-tmp*
