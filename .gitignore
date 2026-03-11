@@ -1,2 +1,7 @@
 **/__pycache__/
 source/v1_
+.python-version
+pyproject.toml
+.venv/
+uv.lock
+ner-tmp*
