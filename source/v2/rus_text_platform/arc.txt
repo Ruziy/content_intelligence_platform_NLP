@@ -1,0 +1,17 @@
+rus_text_platform/
+├─ sentiment/                     # Модуль: анализ настроений по текстам
+│  ├─ __init__.py
+│  └─ models.py                   # модели + гиперпараметры
+├─ api/                           # FastAPI + HTML/CSS интерфейс
+│  ├─ main.py                     # сервер
+│  ├─ templates/
+│  │  └─ index.html               # интерфейс с формой
+│  └─ static/
+│     ├─ style.css
+│     └─ script.js
+├─ tests/                         # базовые тесты
+│  └─ test_api.py
+├─ data/                          # примеры текстов
+│  └─ input.txt
+├─ README.md
+└─ requirements.txt

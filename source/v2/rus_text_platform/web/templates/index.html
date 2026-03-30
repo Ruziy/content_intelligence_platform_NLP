@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Russian Text Platform</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="page-bg"></div>
+
+    <main class="app-shell">
+        <section class="hero-card">
+            <div class="hero-badge">NLP Platform</div>
+            <h1>Платформа обработки текстовых данных</h1>
+            <p class="hero-subtitle">
+                Анализируй текст, загружай документы drag-and-drop и получай результат в одном интерфейсе.
+            </p>
+        </section>
+
+        <section class="workspace">
+            <div class="panel panel-form">
+                <div class="panel-header">
+                    <h2>Входные данные</h2>
+                    <p>Выбери модуль и передай текст или файл.</p>
+                </div>
+
+                <form id="text-form" class="form-grid">
+                    <div class="field">
+                        <label for="module-select">Модуль</label>
+                        <select name="module_type" id="module-select">
+                            <option>Анализ настроений по текстам</option>
+                            <option>Обработка неструктурированных текстовых данных</option>
+                            <option>Поиск текстовых данных в системе</option>
+                            <option>Обработка текстовых документов</option>
+                        </select>
+                    </div>
+
+                    <div class="field" id="text-field">
+                        <label for="text-input">Текст</label>
+                        <textarea
+                            id="text-input"
+                            name="text"
+                            placeholder="Введите текст для анализа..."
+                        ></textarea>
+                    </div>
+
+                    <div class="field hidden" id="query-field">
+                        <label for="query-input">Поисковый запрос</label>
+                        <input
+                            type="text"
+                            name="query"
+                            id="query-input"
+                            placeholder="Введите запрос для поиска..."
+                        >
+                    </div>
+
+                    <div class="field hidden" id="file-field">
+                        <label>Файл документа</label>
+
+                        <div class="dropzone" id="dropzone">
+                            <input type="file" id="file-input" name="file" hidden
+                                   accept=".txt,.docx,.pdf,.jpg,.jpeg,.png">
+                            <div class="dropzone-inner">
+                                <div class="drop-icon">⬆</div>
+                                <h3>Перетащи файл сюда</h3>
+                                <p>или <span id="browse-link">выбери с компьютера</span></p>
+                                <small>.txt, .docx, .pdf, .jpg, .jpeg, .png</small>
+                            </div>
+                        </div>
+
+                        <div class="file-meta hidden" id="file-meta">
+                            <span class="file-name" id="file-name"></span>
+                            <button type="button" class="file-remove" id="file-remove">Удалить</button>
+                        </div>
+                    </div>
+
+                    <div class="actions">
+                        <button type="submit" class="primary-btn" id="submit-btn">
+                            <span class="btn-text">Запустить обработку</span>
+                            <span class="btn-loader hidden" id="btn-loader"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="panel panel-result">
+                <div class="panel-header">
+                    <h2>Результат</h2>
+                    <p>Ответ API и извлечённый текст появятся здесь.</p>
+                </div>
+
+                <div class="result-placeholder" id="result-placeholder">
+                    <div class="placeholder-icon">✦</div>
+                    <p>Пока нет результата. Заполни форму и отправь запрос.</p>
+                </div>
+
+                <div class="result-container hidden" id="result-container">
+                    <div class="result-toolbar">
+                        <span class="result-status" id="result-status">Готово</span>
+                        <button type="button" class="ghost-btn" id="copy-result-btn">Копировать</button>
+                    </div>
+
+                    <pre id="result-pre"></pre>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const moduleSelect = document.getElementById('module-select');
+        const textField = document.getElementById('text-field');
+        const queryField = document.getElementById('query-field');
+        const fileField = document.getElementById('file-field');
+
+        const form = document.getElementById('text-form');
+        const resultContainer = document.getElementById('result-container');
+        const resultPlaceholder = document.getElementById('result-placeholder');
+        const resultPre = document.getElementById('result-pre');
+        const resultStatus = document.getElementById('result-status');
+
+        const submitBtn = document.getElementById('submit-btn');
+        const btnText = document.querySelector('.btn-text');
+        const btnLoader = document.getElementById('btn-loader');
+
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('file-input');
+        const browseLink = document.getElementById('browse-link');
+        const fileMeta = document.getElementById('file-meta');
+        const fileName = document.getElementById('file-name');
+        const fileRemove = document.getElementById('file-remove');
+        const copyResultBtn = document.getElementById('copy-result-btn');
+
+        function updateUIByModule() {
+            const selected = moduleSelect.value;
+
+            queryField.classList.add('hidden');
+            fileField.classList.add('hidden');
+            textField.classList.remove('hidden');
+
+            if (selected === "Поиск текстовых данных в системе") {
+                queryField.classList.remove('hidden');
+            }
+
+            if (selected === "Обработка текстовых документов") {
+                fileField.classList.remove('hidden');
+                textField.classList.add('hidden');
+            }
+        }
+
+        function setSelectedFile(file) {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            fileInput.files = dt.files;
+
+            fileName.textContent = `${file.name} • ${(file.size / 1024).toFixed(1)} KB`;
+            fileMeta.classList.remove('hidden');
+            dropzone.classList.add('has-file');
+        }
+
+        function clearSelectedFile() {
+            fileInput.value = '';
+            fileMeta.classList.add('hidden');
+            fileName.textContent = '';
+            dropzone.classList.remove('has-file');
+        }
+
+        moduleSelect.addEventListener('change', updateUIByModule);
+        updateUIByModule();
+
+        browseLink.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.click();
+        });
+
+        dropzone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) setSelectedFile(file);
+        });
+
+        fileRemove.addEventListener('click', clearSelectedFile);
+
+        // Критично: запрещаем браузеру открывать файл при drop на окно
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            window.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            document.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropzone.classList.add('dragover');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropzone.classList.remove('dragover');
+            });
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const files = e.dataTransfer.files;
+            if (files && files.length > 0) {
+                setSelectedFile(files[0]);
+            }
+        });
+
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const formData = new FormData();
+            formData.append('module_type', moduleSelect.value);
+            formData.append('text', document.getElementById('text-input').value || '');
+            formData.append('query', document.getElementById('query-input').value || '');
+
+            if (fileInput.files[0]) {
+                formData.append('file', fileInput.files[0]);
+            }
+
+            submitBtn.disabled = true;
+            btnText.textContent = 'Обработка...';
+            btnLoader.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                resultPlaceholder.classList.add('hidden');
+                resultContainer.classList.remove('hidden');
+                resultStatus.textContent = response.ok ? 'Успешно' : 'Ошибка';
+                resultPre.textContent = JSON.stringify(result, null, 2);
+            } catch (error) {
+                resultPlaceholder.classList.add('hidden');
+                resultContainer.classList.remove('hidden');
+                resultStatus.textContent = 'Ошибка';
+                resultPre.textContent = JSON.stringify({
+                    error: 'Не удалось выполнить запрос',
+                    details: String(error)
+                }, null, 2);
+            } finally {
+                submitBtn.disabled = false;
+                btnText.textContent = 'Запустить обработку';
+                btnLoader.classList.add('hidden');
+            }
+        });
+
+        copyResultBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(resultPre.textContent);
+                copyResultBtn.textContent = 'Скопировано';
+                setTimeout(() => {
+                    copyResultBtn.textContent = 'Копировать';
+                }, 1200);
+            } catch {
+                copyResultBtn.textContent = 'Ошибка';
+            }
+        });
+    </script>
+</body>
+</html>
