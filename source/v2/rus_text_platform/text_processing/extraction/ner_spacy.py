@@ -12,7 +12,9 @@ def extract_entities_spacy(text):
 
         entities.append({
             "text": ent.text,
-            "label": ent.label_
+            "label": ent.label_,
+            "start": ent.start_char,
+            "end": ent.end_char
         })
 
     return entities

@@ -17,7 +17,16 @@ ner_models = {
 
 
 def extract_entities_transformer(text, model="rubert"):
-
     pipe = ner_models[model]
-
-    return pipe(text)
+    raw_entities = pipe(text)
+    normalized_entities = []
+    for entity in raw_entities:
+        normalized_entities.append(
+            {
+                "text": entity.get("word", ""),
+                "label": entity.get("entity_group", entity.get("entity", "UNK")),
+                "start": entity.get("start"),
+                "end": entity.get("end"),
+            }
+        )
+    return normalized_entities
