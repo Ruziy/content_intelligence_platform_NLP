@@ -1,0 +1,66 @@
+[
+  {
+    "id": "1",
+    "title": "Политика отпусков",
+    "text": "Сотрудник имеет право на ежегодный оплачиваемый отпуск согласно трудовому кодексу.",
+    "language": "ru",
+    "tags": ["hr", "policy"],
+    "metadata": {"category": "hr"}
+  },
+  {
+    "id": "2",
+    "title": "Доступ в систему",
+    "text": "Доступ в систему предоставляется по заявке после согласования с руководителем.",
+    "language": "ru",
+    "tags": ["it", "security"],
+    "metadata": {"category": "it"}
+  },
+  {
+    "id": "3",
+    "title": "Сброс пароля",
+    "text": "Для сброса пароля необходимо перейти по ссылке восстановления и ввести email.",
+    "language": "ru",
+    "tags": ["it", "security"],
+    "metadata": {"category": "it"}
+  },
+  {
+    "id": "4",
+    "title": "Onboarding process",
+    "text": "New employees should complete onboarding tasks within the first week.",
+    "language": "en",
+    "tags": ["hr", "onboarding"],
+    "metadata": {"category": "hr"}
+  },
+  {
+    "id": "5",
+    "title": "Security policy",
+    "text": "All employees must follow security guidelines when accessing company systems.",
+    "language": "en",
+    "tags": ["security", "policy"],
+    "metadata": {"category": "it"}
+  },
+  {
+    "id": "6",
+    "title": "Отчётность сотрудников",
+    "text": "Сотрудники обязаны сдавать ежемесячные отчёты о проделанной работе.",
+    "language": "ru",
+    "tags": ["hr", "report"],
+    "metadata": {"category": "hr"}
+  },
+  {
+    "id": "7",
+    "title": "Email access",
+    "text": "Employees can access email through the corporate portal using their credentials.",
+    "language": "en",
+    "tags": ["it"],
+    "metadata": {"category": "it"}
+  },
+  {
+    "id": "8",
+    "title": "Удалённая работа",
+    "text": "Удалённая работа допускается при согласовании с руководителем и соблюдении политики компании.",
+    "language": "ru",
+    "tags": ["hr", "policy"],
+    "metadata": {"category": "hr"}
+  }
+]

@@ -1,5 +1,6 @@
 import os
 import shutil
+import json
 from uuid import uuid4
 
 from fastapi import FastAPI, Form, Request, UploadFile, File
@@ -9,18 +10,28 @@ from fastapi.templating import Jinja2Templates
 
 from sentiment_Razuvaev_module.models import analyze_sentiment
 from processing_of_text_documents_Chizhov_module.source.parser_text import extract_text
+from text_search_module_Pyataev.search_module import TextSearchEngine, SearchDocument, SearchMode
+
 
 app = FastAPI()
 
 BASE_DIR = os.path.dirname(__file__)
 WEB_DIR = os.path.join(BASE_DIR, "web")
 UPLOAD_DIR = os.path.join(BASE_DIR, "data", "uploads")
+SEARCH_DB_PATH = r"C:\Users\Alex\Desktop\Учеба 2 семестр маги\Захарова\source\v2\rus_text_platform\text_search_module_Pyataev\db\docs.json"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 templates = Jinja2Templates(directory=os.path.join(WEB_DIR, "templates"))
 app.mount("/static", StaticFiles(directory=os.path.join(WEB_DIR, "static")), name="static")
 
+search_engine = TextSearchEngine(enable_semantic=True)
+
+with open(SEARCH_DB_PATH, "r", encoding="utf-8") as f:
+    search_data = json.load(f)
+
+search_docs = [SearchDocument(**item) for item in search_data]
+search_engine.index_documents(search_docs)
 
 @app.get("/")
 async def index(request: Request):
@@ -43,13 +54,42 @@ async def process_ajax(
                     {"error": "Для анализа настроений нужно ввести текст."},
                     status_code=400
                 )
+
             result = analyze_sentiment(text)
 
         elif module_type == "Поиск текстовых данных в системе":
-            result = {
-                "query": query,
-                "found": "Здесь будет результат поиска (пустая оболочка)"
-            }
+            if not query.strip():
+                return JSONResponse(
+                    {"error": "Для поиска нужно ввести поисковый запрос."},
+                    status_code=400
+                )
+
+            search_results = search_engine.search(
+                query=query,
+                mode=SearchMode.HYBRID,
+                top_k=1,
+                min_score=0.0
+            )
+
+            if not search_results:
+                result = {
+                    "query": query,
+                    "found": False,
+                    "message": "Подходящий документ не найден."
+                }
+            else:
+                best = search_results[0]
+                doc = search_engine.get_document(best.id)
+
+                result = {
+                    "query": query,
+                    "found": True,
+                    "document": {
+                        "id": doc.id,
+                        "title": doc.title,
+                        "text": doc.text,
+                    }
+                }
 
         elif module_type == "Обработка текстовых документов":
             if file is None:
@@ -91,6 +131,7 @@ async def process_ajax(
                     {"error": "Для этого модуля нужно ввести текст."},
                     status_code=400
                 )
+
             result = {
                 "module": module_type,
                 "message": "Здесь будет логика обработки неструктурированных текстовых данных.",
@@ -98,7 +139,9 @@ async def process_ajax(
             }
 
         else:
-            result = {"message": f"Модуль '{module_type}' пока не реализован"}
+            result = {
+                "message": f"Модуль '{module_type}' пока не реализован"
+            }
 
         return JSONResponse(result)
 
