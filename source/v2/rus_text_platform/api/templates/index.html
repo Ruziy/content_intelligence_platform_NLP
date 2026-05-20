@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Text Platform</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="container">
+    <h2>Text Processing Platform</h2>
+
+    <form id="text-form">
+        <textarea name="text" placeholder="Введите текст"></textarea>
+
+        <select name="module_type" id="module-select">
+            <option>Анализ настроений по текстам</option>
+            <option>Обработка неструктурированных текстовых данных</option>
+            <option>Поиск текстовых данных в системе</option>
+            <option>Обработка текстовых документов</option>
+        </select>
+
+        <input type="text" name="query" id="query-input" placeholder="Текст для поиска (только для поиска)" style="display:none;">
+
+        <button type="submit">Отправить</button>
+    </form>
+
+    <div class="result-container" id="result-container" style="display:none;">
+        <h3>Результат:</h3>
+        <pre id="result-pre"></pre>
+    </div>
+</div>
+
+<script>
+const moduleSelect = document.getElementById('module-select');
+const queryInput = document.getElementById('query-input');
+const form = document.getElementById('text-form');
+const resultContainer = document.getElementById('result-container');
+const resultPre = document.getElementById('result-pre');
+
+// Показываем поле query только для поиска
+moduleSelect.addEventListener('change', function() {
+    queryInput.style.display = (moduleSelect.value === "Поиск текстовых данных в системе") ? 'block' : 'none';
+});
+
+// Асинхронная отправка формы через fetch
+form.addEventListener('submit', async function(e) {
+    e.preventDefault(); // отменяем обычный POST
+
+    const formData = new FormData(form);
+    const response = await fetch('/process', {
+        method: 'POST',
+        body: formData
+    });
+
+    const result = await response.json();
+    resultPre.textContent = JSON.stringify(result, null, 2);
+    resultContainer.style.display = 'block';
+});
+</script>
+</body>
+</html>
