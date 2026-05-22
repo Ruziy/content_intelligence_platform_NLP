@@ -4,9 +4,8 @@ import json
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, Form, Request, UploadFile, File
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 from sentiment_Razuvaev_module.models import analyze_sentiment
 from processing_of_text_documents_Chizhov_module.source.parser_text import extract_text
@@ -26,7 +25,7 @@ SEARCH_DB_PATH = os.path.join(
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-templates = Jinja2Templates(directory=os.path.join(WEB_DIR, "templates"))
+INDEX_HTML = os.path.join(WEB_DIR, "templates", "index.html")
 app.mount("/static", StaticFiles(directory=os.path.join(WEB_DIR, "static")), name="static")
 
 search_engine = TextSearchEngine(enable_semantic=True)
@@ -38,8 +37,8 @@ search_docs = [SearchDocument(**item) for item in search_data]
 search_engine.index_documents(search_docs)
 
 @app.get("/")
-async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+async def index():
+    return FileResponse(INDEX_HTML)
 
 
 @app.post("/process")
@@ -233,7 +232,15 @@ async def start_optimization(
     generations: int = Form(5),
     seed: int = Form(42),
 ):
-    if _resolve_ga_module(module) is None:
+    try:
+        mod = _resolve_ga_module(module)
+    except Exception as exc:
+        return JSONResponse(
+            {"error": f"Ошибка загрузки модуля '{module}': {type(exc).__name__}: {exc}"},
+            status_code=500,
+        )
+
+    if mod is None:
         return JSONResponse(
             {"error": f"Неизвестный модуль: {module}. Доступны: sentiment, search, text_processing."},
             status_code=400,
