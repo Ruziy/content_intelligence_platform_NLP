@@ -1,8 +1,10 @@
 import json
+import os
+
 from search_module import TextSearchEngine, SearchDocument, SearchMode
 
 
-DOCS_PATH = r"C:\Users\Alex\Desktop\Учеба 2 семестр маги\Захарова\source\v2\rus_text_platform\text_search_module_Pyataev\db\docs.json"
+DOCS_PATH = os.path.join(os.path.dirname(__file__), "db", "docs.json")
 
 
 TEST_CASES = [

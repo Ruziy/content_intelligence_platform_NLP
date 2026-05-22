@@ -105,6 +105,62 @@
                 </div>
             </div>
         </section>
+
+        <section class="workspace">
+            <div class="panel panel-form">
+                <div class="panel-header">
+                    <h2>Оптимизация гиперпараметров (ГА)</h2>
+                    <p>Запусти генетический алгоритм для подбора параметров каждого модуля.</p>
+                </div>
+
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="ga-module">Модуль</label>
+                        <select id="ga-module">
+                            <option value="sentiment">sentiment (анализ настроений)</option>
+                            <option value="search">search (поиск документов)</option>
+                            <option value="text_processing">text_processing (NER pipeline)</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="ga-population">Размер популяции</label>
+                        <input type="number" id="ga-population" value="10" min="2" max="50">
+                    </div>
+
+                    <div class="field">
+                        <label for="ga-generations">Число поколений</label>
+                        <input type="number" id="ga-generations" value="5" min="1" max="50">
+                    </div>
+
+                    <div class="actions">
+                        <button type="button" class="primary-btn" id="ga-start-btn">Запустить ГА</button>
+                        <button type="button" class="ghost-btn" id="ga-best-btn">Показать лучшие</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel panel-result">
+                <div class="panel-header">
+                    <h2>Прогресс оптимизации</h2>
+                    <p>Поколения, лучший fitness и параметры обновляются в реальном времени.</p>
+                </div>
+
+                <div class="result-placeholder" id="ga-placeholder">
+                    <div class="placeholder-icon">⚙</div>
+                    <p>Запусти ГА или нажми «Показать лучшие», чтобы увидеть результат.</p>
+                </div>
+
+                <div class="result-container hidden" id="ga-container">
+                    <div class="result-toolbar">
+                        <span class="result-status" id="ga-status">—</span>
+                        <button type="button" class="ghost-btn" id="ga-copy-btn">Копировать</button>
+                    </div>
+
+                    <pre id="ga-output"></pre>
+                </div>
+            </div>
+        </section>
     </main>
 
     <script>
@@ -275,6 +331,130 @@
                 }, 1200);
             } catch {
                 copyResultBtn.textContent = 'Ошибка';
+            }
+        });
+
+        // ===== GA optimization panel =====
+        const gaModule = document.getElementById('ga-module');
+        const gaPopulation = document.getElementById('ga-population');
+        const gaGenerations = document.getElementById('ga-generations');
+        const gaStartBtn = document.getElementById('ga-start-btn');
+        const gaBestBtn = document.getElementById('ga-best-btn');
+        const gaPlaceholder = document.getElementById('ga-placeholder');
+        const gaContainer = document.getElementById('ga-container');
+        const gaOutput = document.getElementById('ga-output');
+        const gaStatus = document.getElementById('ga-status');
+        const gaCopyBtn = document.getElementById('ga-copy-btn');
+
+        let gaPollTimer = null;
+
+        function showGaPanel(text, status) {
+            gaPlaceholder.classList.add('hidden');
+            gaContainer.classList.remove('hidden');
+            gaOutput.textContent = text;
+            gaStatus.textContent = status;
+        }
+
+        function stopPolling() {
+            if (gaPollTimer) {
+                clearInterval(gaPollTimer);
+                gaPollTimer = null;
+            }
+        }
+
+        async function pollStatus(module, jobId) {
+            try {
+                const r = await fetch(`/optimize/${module}/status/${jobId}`);
+                const data = await r.json();
+
+                const lines = [
+                    `module=${data.module}`,
+                    `status=${data.status}`,
+                    `generation=${data.generation}/${data.total_generations}`,
+                    `progress=${(data.progress * 100).toFixed(1)}%`,
+                    `best_fitness=${data.best_fitness ?? '—'}`,
+                    `best_params=${JSON.stringify(data.best_params, null, 2)}`,
+                ];
+                if (data.error) lines.push(`error=${data.error}`);
+                if (data.history && data.history.length) {
+                    lines.push('history:');
+                    data.history.forEach(h => {
+                        lines.push(
+                            `  gen=${h.generation}  ` +
+                            `best=${h.best_fitness.toFixed(4)}  ` +
+                            `avg=${h.avg_fitness.toFixed(4)}`
+                        );
+                    });
+                }
+                showGaPanel(lines.join('\n'), data.status);
+
+                if (data.status === 'done' || data.status === 'error') {
+                    stopPolling();
+                    gaStartBtn.disabled = false;
+                    gaStartBtn.textContent = 'Запустить ГА';
+                }
+            } catch (e) {
+                showGaPanel(`Ошибка опроса: ${e}`, 'error');
+                stopPolling();
+                gaStartBtn.disabled = false;
+                gaStartBtn.textContent = 'Запустить ГА';
+            }
+        }
+
+        gaStartBtn.addEventListener('click', async () => {
+            stopPolling();
+            const module = gaModule.value;
+            const formData = new FormData();
+            formData.append('population', gaPopulation.value);
+            formData.append('generations', gaGenerations.value);
+
+            gaStartBtn.disabled = true;
+            gaStartBtn.textContent = 'Запущено...';
+            showGaPanel('Запуск...', 'queued');
+
+            try {
+                const r = await fetch(`/optimize/${module}`, {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await r.json();
+
+                if (!r.ok) {
+                    showGaPanel(JSON.stringify(data, null, 2), 'error');
+                    gaStartBtn.disabled = false;
+                    gaStartBtn.textContent = 'Запустить ГА';
+                    return;
+                }
+
+                const jobId = data.job_id;
+                pollStatus(module, jobId);
+                gaPollTimer = setInterval(() => pollStatus(module, jobId), 1000);
+            } catch (e) {
+                showGaPanel(`Ошибка запуска: ${e}`, 'error');
+                gaStartBtn.disabled = false;
+                gaStartBtn.textContent = 'Запустить ГА';
+            }
+        });
+
+        gaBestBtn.addEventListener('click', async () => {
+            stopPolling();
+            const module = gaModule.value;
+            try {
+                const r = await fetch(`/optimize/${module}/best`);
+                const data = await r.json();
+                showGaPanel(JSON.stringify(data, null, 2), r.ok ? 'done' : 'no data');
+            } catch (e) {
+                showGaPanel(`Ошибка: ${e}`, 'error');
+            }
+        });
+
+        gaCopyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(gaOutput.textContent);
+                gaCopyBtn.textContent = 'Скопировано';
+                setTimeout(() => { gaCopyBtn.textContent = 'Копировать'; }, 1200);
+            } catch {
+                gaCopyBtn.textContent = 'Ошибка';
             }
         });
     </script>

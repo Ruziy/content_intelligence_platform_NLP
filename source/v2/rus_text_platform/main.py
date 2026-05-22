@@ -3,7 +3,7 @@ import shutil
 import json
 from uuid import uuid4
 
-from fastapi import FastAPI, Form, Request, UploadFile, File
+from fastapi import BackgroundTasks, FastAPI, Form, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -12,13 +12,17 @@ from sentiment_Razuvaev_module.models import analyze_sentiment
 from processing_of_text_documents_Chizhov_module.source.parser_text import extract_text
 from text_search_module_Pyataev.search_module import TextSearchEngine, SearchDocument, SearchMode
 
+from ga_jobs import registry as ga_registry
+
 
 app = FastAPI()
 
 BASE_DIR = os.path.dirname(__file__)
 WEB_DIR = os.path.join(BASE_DIR, "web")
 UPLOAD_DIR = os.path.join(BASE_DIR, "data", "uploads")
-SEARCH_DB_PATH = r"C:\Users\Alex\Desktop\Учеба 2 семестр маги\Захарова\source\v2\rus_text_platform\text_search_module_Pyataev\db\docs.json"
+SEARCH_DB_PATH = os.path.join(
+    BASE_DIR, "text_search_module_Pyataev", "db", "docs.json"
+)
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -150,3 +154,114 @@ async def process_ajax(
             {"error": f"Ошибка обработки: {str(e)}"},
             status_code=500
         )
+
+
+# -----------------------------
+# Оптимизация гиперпараметров (ГА)
+# -----------------------------
+
+
+def _resolve_ga_module(module: str):
+    """Возвращает функцию optimize и load_best для запрошенного модуля."""
+    if module == "sentiment":
+        from sentiment_Razuvaev_module import ga as mod
+    elif module == "search":
+        from text_search_module_Pyataev import ga as mod
+    elif module == "text_processing":
+        from text_processing import ga as mod
+    else:
+        return None
+    return mod
+
+
+def _run_ga_job(module: str, job_id: str, population: int, generations: int, seed: int):
+    """Запускается в фоне. Прогресс пушится в registry."""
+    mod = _resolve_ga_module(module)
+    if mod is None:
+        ga_registry.update(job_id, status="error", error=f"Unknown module: {module}")
+        return
+
+    ga_registry.update(job_id, status="running")
+
+    def on_progress(entry):
+        ga_registry.update(
+            job_id,
+            generation=entry["generation"],
+            progress=entry["generation"] / max(1, generations),
+            best_fitness=entry["best_fitness"],
+            best_params=entry["best_params"],
+            history=ga_registry.get(job_id).history + [entry],
+        )
+
+    try:
+        result = mod.optimize(
+            population_size=population,
+            generations=generations,
+            seed=seed,
+            on_progress=on_progress,
+        )
+        ga_registry.update(
+            job_id,
+            status="done",
+            progress=1.0,
+            best_fitness=result.best_fitness,
+            best_params=result.best_params,
+            finished_at=__import__("time").time(),
+            result={
+                "best_params": result.best_params,
+                "best_fitness": result.best_fitness,
+                "evaluations": result.evaluations,
+                "runtime_s": result.runtime_s,
+                "ga_config": result.ga_config,
+                "history": result.history,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        ga_registry.update(
+            job_id,
+            status="error",
+            error=f"{type(exc).__name__}: {exc}",
+            finished_at=__import__("time").time(),
+        )
+
+
+@app.post("/optimize/{module}")
+async def start_optimization(
+    module: str,
+    background_tasks: BackgroundTasks,
+    population: int = Form(10),
+    generations: int = Form(5),
+    seed: int = Form(42),
+):
+    if _resolve_ga_module(module) is None:
+        return JSONResponse(
+            {"error": f"Неизвестный модуль: {module}. Доступны: sentiment, search, text_processing."},
+            status_code=400,
+        )
+
+    job = ga_registry.create(module=module, total_generations=generations)
+    background_tasks.add_task(_run_ga_job, module, job.job_id, population, generations, seed)
+    return {"job_id": job.job_id, "status": "queued", "module": module}
+
+
+@app.get("/optimize/{module}/status/{job_id}")
+async def optimization_status(module: str, job_id: str):
+    job = ga_registry.get(job_id)
+    if not job or job.module != module:
+        return JSONResponse({"error": "Job not found"}, status_code=404)
+    return job.to_dict()
+
+
+@app.get("/optimize/{module}/best")
+async def optimization_best(module: str):
+    mod = _resolve_ga_module(module)
+    if mod is None:
+        return JSONResponse({"error": f"Неизвестный модуль: {module}"}, status_code=400)
+
+    best = mod.load_best()
+    if best is None:
+        return JSONResponse(
+            {"error": "Лучшие параметры ещё не рассчитаны. Запустите оптимизацию."},
+            status_code=404,
+        )
+    return best

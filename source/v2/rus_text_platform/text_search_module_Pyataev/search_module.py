@@ -209,29 +209,43 @@ class TextSearchEngine:
 
     # -------- индексация --------
 
-    def index_documents(self, documents: Sequence[SearchDocument]) -> IndexStats:
+    def index_documents(
+        self,
+        documents: Sequence[SearchDocument],
+        tfidf_params: Optional[Dict[str, Any]] = None,
+        reuse_embeddings: bool = False,
+    ) -> IndexStats:
         docs = list(documents)
 
         # Предобработка текста документов для TF-IDF
         processed = [self.preprocessor.preprocess_for_tfidf(d.text) for d in docs]
 
-        # Создание TF-IDF векторизатора
-        n_docs = len(docs)
-        vectorizer = TfidfVectorizer(
-            min_df=1,
-            max_df=max(1.0, 0.95),  # для 1 документа станет 1.0
-            ngram_range=(1, 2),
-            sublinear_tf=True,
-            norm="l2",
-        )
+        # Параметры TF-IDF (можно переопределить из вне, например, из ГА)
+        default_tfidf = {
+            "min_df": 1,
+            "max_df": 1.0,
+            "ngram_range": (1, 2),
+            "sublinear_tf": True,
+            "norm": "l2",
+        }
+        if tfidf_params:
+            default_tfidf.update(tfidf_params)
+        vectorizer = TfidfVectorizer(**default_tfidf)
 
         # Построение TF-IDF матрицы
         tfidf_matrix = vectorizer.fit_transform(processed) if processed else None
 
         embeddings = None
 
-        # Построение эмбеддингов (если включён семантический поиск)
-        if self.enable_semantic and docs:
+        # Переиспользуем embeddings, если корпус документов не менялся
+        if (
+            reuse_embeddings
+            and self.corpus.embeddings is not None
+            and len(self.corpus.documents) == len(docs)
+            and all(a.id == b.id for a, b in zip(self.corpus.documents, docs))
+        ):
+            embeddings = self.corpus.embeddings
+        elif self.enable_semantic and docs:
             texts_for_semantic = [f"{d.title or ''} {d.text}".strip() for d in docs]
 
             embeddings = self.semantic_model.encode(
